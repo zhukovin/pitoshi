@@ -33,6 +33,30 @@ This document describes everything required to reproduce the project from scratc
 
 ---
 
+# IDE Setup (IntelliJ IDEA)
+
+IDEA does not ship with CircuitPython stubs, so `import board`, `import busio`, etc. will show as unresolved by default. Fix:
+
+1. Create a virtual environment in the project root:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install circuitpython-stubs
+```
+
+2. Point IDEA to the venv interpreter:
+   `File → Project Structure → Project Settings → Project → SDK → open dropdown → Add Python SDK from disk… → Select existing → Python path → select .venv/bin/python`
+
+3. Invalidate caches to force IDEA to index the new stubs:
+   `File → Invalidate Caches → Invalidate and Restart`
+
+After restart, `board`, `busio`, `digitalio`, and other CircuitPython modules will resolve correctly.
+
+> Do not install the PyPI package named `board` — it is unrelated to CircuitPython and will not help.
+
+---
+
 # Installing CircuitPython
 
 Download the latest firmware:
