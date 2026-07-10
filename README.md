@@ -546,3 +546,113 @@ Project status:
 ✅ KMK running
 
 ✅ Toshiba keyboard fully functional over USB
+
+## Manually Creating a Wi-Fi Connection with NetworkManager
+
+If the Raspberry Pi detects nearby Wi-Fi networks (`iwlist wlan0 scan` works) but does not have any saved Wi-Fi connections (`nmcli connection show` only lists `lo` and `Wired connection 1`), you can manually create a connection profile.
+
+### 1. Create a new Wi-Fi connection
+
+```bash
+sudo nmcli connection add \
+    type wifi \
+    ifname wlan0 \
+    con-name home \
+    ssid "az"
+```
+
+This creates a new connection profile named **home** for the Wi-Fi network with SSID **az**.
+
+### 2. Configure the security type
+
+```bash
+sudo nmcli connection modify home \
+    wifi-sec.key-mgmt wpa-psk
+```
+
+This tells NetworkManager that the network uses WPA/WPA2 Personal authentication.
+
+### 3. Set the Wi-Fi password
+
+```bash
+sudo nmcli connection modify home \
+    wifi-sec.psk "12345678"
+```
+
+### 4. Activate the connection
+
+```bash
+sudo nmcli connection up home
+```
+
+If successful, the Raspberry Pi will obtain an IP address from the router.
+
+### 5. Verify the connection
+
+Check the assigned IP address:
+
+```bash
+ip addr show wlan0
+```
+
+Test Internet connectivity:
+
+```bash
+ping -c 4 8.8.8.8
+```
+
+Test DNS resolution:
+
+```bash
+ping -c 4 google.com
+```
+
+### Useful NetworkManager commands
+
+List all saved connections:
+
+```bash
+nmcli connection show
+```
+
+List network devices:
+
+```bash
+nmcli device
+```
+
+Show detailed information about the Wi-Fi interface:
+
+```bash
+nmcli device show wlan0
+```
+
+List nearby Wi-Fi networks:
+
+```bash
+nmcli device wifi list
+```
+
+Force a Wi-Fi rescan:
+
+```bash
+nmcli device wifi rescan
+```
+
+Bring the connection up again later:
+
+```bash
+sudo nmcli connection up home
+```
+
+Disconnect from Wi-Fi:
+
+```bash
+sudo nmcli connection down home
+```
+
+Delete the connection profile:
+
+```bash
+sudo nmcli connection delete home
+```
