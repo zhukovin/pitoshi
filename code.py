@@ -4,10 +4,10 @@ from kmk.kmk_keyboard import KMKKeyboard
 from kmk.keys import KC
 from kmk.modules.layers import Layers
 from kmk.scanners import DiodeOrientation
-from kmk.scanners.keypad import MatrixScanner
 from kmk.utils import Debug
 
-#from ghost_filter import GhostFilterMatrixScanner
+# from kmk.scanners.keypad import MatrixScanner
+from ghost_filter import GhostFilterMatrixScanner
 
 Debug(__name__).enabled = True
 
@@ -33,8 +33,8 @@ keyboard.diode_orientation = DiodeOrientation.ROW2COL
 # keypad.KeyMatrix default interval=0.02s (20ms/scan), threshold=1 = no debounce.
 # debounce time = interval * threshold, so keep interval short and threshold moderate.
 # interval=0.002 + threshold=15 → ~30ms debounce. Raise threshold if Enter still bounces.
-# keyboard.matrix = GhostFilterMatrixScanner(
-keyboard.matrix = MatrixScanner(
+keyboard.matrix = GhostFilterMatrixScanner(
+# keyboard.matrix = MatrixScanner(
     column_pins=keyboard.col_pins,
     row_pins=keyboard.row_pins,
     columns_to_anodes=keyboard.diode_orientation,
