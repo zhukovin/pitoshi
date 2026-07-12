@@ -1,0 +1,513 @@
+╭─── Claude Code v2.1.201 ─────────────────────────────────────────────────────╮
+│                                                    │ Tips for getting        │
+│                 Welcome back Alex!                 │ started                 │
+│                                                    │ Run /init to create a … │
+│                       ▐▛███▜▌                      │ ─────────────────────── │
+│                      ▝▜█████▛▘                     │ What's new              │
+│                        ▘▘ ▝▝                       │ Claude Sonnet 5 sessio… │
+│    Sonnet 5 · Claude Pro · zhukovin@gmail.com's    │ Changed `AskUserQuesti… │
+│    Organization                                    │ Changed the "default" … │
+│           ~/code/toshiba-t1200xe-keyboard          │ /release-notes for more │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+ ▎ Extended: Fable 5 is included in your weekly limit
+ ▎ Through July 12, you can use up to 50% of your weekly usage limit on Fable 5. If you hit your limit, you can continue on Fable 5 with usage credits. Fable 5 draws down usage faster than Opus 4.8. Run /model and select Fable to use it. Learn more
+   +1 more · /status
+
+❯ Here is the problem that I am facing with this keyboard. When I press some    
+  keys, they produce 2 keys (the rest work just fine). Here are the broken      
+  keys:                                                                         
+  F3 -> F3, Next (PgDn)                                                         
+  F5 -> F5, F7                                                                  
+  F7 -> F7, F9                                                                  
+  F8 -> F8, F10                                                                 
+  F9 -> F9,END                                                                  
+  Next (PgDn) -> Next, F5                                                       
+                                                                                
+  I used rpi's utility xev to monitor keyboard events, so the key names might   
+  be unusual (like Next, which means PgDn)                                      
+                                                                                
+  The other problem is that PrtSc key does not produce any linux event.         
+                                                                                
+  Please help me debug this, I want to check whether it is a hardware or        
+  software problem.                                                             
+
+  Searched for 3 patterns, read 4 files (ctrl+o to expand)
+
+⏺ I found the project — this is a KMK/CircuitPython firmware for a Raspberry Pi
+  Pico that scans the original Toshiba keyboard matrix (code.py:34-40, row/col
+  pins at code.py:17-26). Mapping your reported keys against the matrix in
+  code.py:49-59 reveals a clean pattern.
+
+  The ghosting pattern
+
+  Every broken key maps to (row, col0-or-1), and the "extra" key is always the
+  next row in the row_pins tuple order, same column:
+
+  ┌─────────────┬────────────────┬────────────┬────────────┐
+  │ Key pressed │ row_pins index │ Extra key  │ next index │
+  ├─────────────┼────────────────┼────────────┼────────────┤
+  │ F3          │ row 2          │ Next(PgDn) │ row 3      │
+  ├─────────────┼────────────────┼────────────┼────────────┤
+  │ Next(PgDn)  │ row 3          │ F5         │ row 4      │
+  ├─────────────┼────────────────┼────────────┼────────────┤
+  │ F5          │ row 4          │ F7         │ row 5      │
+  ├─────────────┼────────────────┼────────────┼────────────┤
+  │ F7          │ row 5          │ F9         │ row 6      │
+  ├─────────────┼────────────────┼────────────┼────────────┤
+  │ F8          │ row 5, col 1   │ F10        │ row 6      │
+  ├─────────────┼────────────────┼────────────┼────────────┤
+  │ F9          │ row 6          │ END        │ row 7      │
+  └─────────────┴────────────────┴────────────┴────────────┘
+
+  That's a continuous chain, rows 2→3→4→5→6→7, in exactly the order the rows
+  appear in code.py:17-20 (GP13, GP14, GP20, GP15, GP22, GP21). Rows 0/1
+  (F1/F2/F11/F12) aren't affected, and it doesn't wrap row 7→row 0. This is a
+  textbook "adjacent row leaks into the next-scanned row" ghost — when row R is
+  driven and a key is pressed, row R's line doesn't fully drop before row R+1 is
+  driven, so the same column reads HIGH again on row R+1's scan. Since it only
+  shows up on columns 0/1 (the F-key column) so far, either those column traces
+  have more capacitance/length, or you simply haven't tested other columns on
+  rows 2-7 yet (worth checking, e.g. does TAB/W ghost into Q/E?).
+
+  This pattern could come from either side:
+  - Hardware: a physical short/crosstalk between adjacent row conductors — bad
+  solder joint, frayed ribbon, oxidized/misaligned connector pins — spanning
+  that contiguous run of rows.
+  - Software/electrical timing: CircuitPython's native keypad.KeyMatrix (the
+  actual scan loop lives in C, not in this repo) not leaving enough settle time
+  before switching rows, combined with column trace capacitance.
+
+  Tests to tell them apart
+
+  1. Enable KMK debug and watch raw scan coordinates. Set
+  Debug(__name__).enabled = True in code.py:10, open the serial console, press
+  just F3. If you see two distinct (row, col) events fire (r2,c0) and (r3,c0),
+  the ghost is happening at the electrical/matrix level — hardware. If only one
+  matrix position is scanned but two HID codes go out, it'd be a firmware bug
+  (unlikely — I checked the keymap, each position maps to exactly one key).
+  2. Multimeter continuity check (Pico powered off, nothing pressed): measure
+  resistance between the suspect row pins/wires (e.g. between the wire going to
+  GP13 and the wire going to GP14, at the ribbon connector). Near-0Ω where there
+  shouldn't be any connection = confirmed hardware short.
+  3. Re-order test: temporarily swap two of the affected rows' positions in the
+  row_pins tuple (keeping the same physical wire-to-GPIO connections, just
+  changing scan order) and update the keymap rows to match. If the ghost still
+  follows the same physical wires (e.g. GP13 still leaks into GP14 regardless of
+  scan order), that confirms a physical short rather than a scan-order
+  artifact.
+
+  For PrtSc (row 6, col 9, code.py:57) — KC.PSCR is a standard,
+  correctly-defined HID keycode (kmk/keys.py:218), so it's not a keymap bug.
+  Same first step: enable debug and press PrtSc.
+  - No scan event at all → dead switch/diode/broken wire for that specific key —
+  hardware.
+  - Scan event appears but nothing shows in xev → check with evtest on the raw
+  Linux input device (bypasses X11). It's common for desktop
+  environments/screenshot tools to grab PrintScreen as a global hotkey, which
+  prevents xev from ever seeing it even though the keyboard is sending it
+  correctly — that would be an OS/DE config issue, not your hardware.
+
+  Want me to make the debug-enabling edit to code.py now so you can run the
+  first test?
+
+✻ Crunched for 3m 28s
+
+❯  YEs. make that debug change and also I just confirmed there is not short     
+  between GP13 and GP14 using a multimeter                                      
+
+  Searched for 2 patterns, read 2 files (ctrl+o to expand)
+
+⏺ Update(code.py)
+  ⎿  Added 1 line, removed 1 line
+       7  from kmk.scanners.keypad import MatrixScanner
+       8  from kmk.utils import Debug
+       9  
+      10 -Debug(__name__).enabled = False                                
+      10 +Debug(__name__).enabled = True                                 
+      11  
+      12  # Copy this code to CIRCUITPY\code.py
+      13  
+
+⏺ Debug is now enabled (code.py:10). Copy this code.py to CIRCUITPY, then
+  connect to the serial console (screen /dev/ttyACM0 115200, tio /dev/ttyACM0,
+  or the Mu editor's serial panel — press Ctrl+D first if it doesn't
+  auto-reload).
+
+  With debug on, every matrix change logs a line like:
+  <ticks> kmk.keyboard: KeyEvent(key_number=22, pressed=True): <Key F3>
+  key_number is row_index * 11 + col_index (11 columns). For your broken keys,
+  watch for these specific numbers:
+
+  ┌────────────┬────────────┐
+  │    Key     │ key_number │
+  ├────────────┼────────────┤
+  │ F3         │ 22         │
+  ├────────────┼────────────┤
+  │ Next(PgDn) │ 33         │
+  ├────────────┼────────────┤
+  │ F5         │ 44         │
+  ├────────────┼────────────┤
+  │ F7         │ 55         │
+  ├────────────┼────────────┤
+  │ F9         │ 66         │
+  ├────────────┼────────────┤
+  │ END        │ 77         │
+  ├────────────┼────────────┤
+  │ F8         │ 56         │
+  ├────────────┼────────────┤
+  │ F10        │ 67         │
+  ├────────────┼────────────┤
+  │ PrtSc      │ 75         │
+  └────────────┴────────────┘
+
+  Press F3 alone and watch the log: if you see two KeyEvent lines (22 and 33)
+  fire back-to-back, the ghost is happening at the raw matrix-scan level —
+  confirmed hardware/electrical, not a firmware keymap bug. If you only ever see
+  one key_number but two HID keys reach the OS, that'd point elsewhere
+  (unlikely — I've already checked the keymap and each position resolves to
+  exactly one key).
+
+  For PrtSc: press it and see if key_number=75 appears in the log at all. No log
+  line = the switch/diode/wire for that key isn't making contact — hardware. A
+  log line with no downstream effect would point to something at the USB/OS
+  layer instead.
+
+  On your multimeter result: ruling out GP13↔GP14 is useful, but it only clears
+  one link in the chain. Worth also checking GP14↔GP20, GP20↔GP15, GP15↔GP22,
+  and GP22↔GP21 (the other row-pin pairs in the ghost chain) — and try
+  wiggling/flexing the ribbon connector while measuring, since a static at-rest
+  continuity check can miss an intermittent connector fault that only shows up
+  under slight mechanical stress or when actually seated.
+
+✻ Baked for 52s
+
+※ recap: We're debugging why some keyboard keys double-register and PrtSc doesn't work at all. I just enabled debug logging in code.py; next step is for you to copy it to CIRCUITPY, watch the serial console, and press F3 and PrtSc to see what logs. (disable recaps in /config)
+
+❯ add to the readme a section explaining how to list tty devices and select the 
+  right one to connect to pico. Explain the full procedure how you open serial  
+  comms using `screen`                                                          
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ I'll insert a new section here explaining how to find and connect to the
+  Pico's serial device, right before "Verify CircuitPython" since that's the
+  first place the README assumes you already have a serial console open.
+
+⏺ Update(README.md)
+  ⎿  Added 51 lines
+       83  
+       84  ---
+       85  
+       86 +# Connecting to the Serial Console                            
+       87 +                                                              
+       88 +The Pico exposes a USB serial (CDC) device once CircuitPython 
+          +is installed. This is how you see `print()` output, KMK debug 
+          +logs, and the REPL.                                           
+       89 +                                                              
+       90 +## 1. List available tty devices                              
+       91 +                                                              
+       92 +**macOS:**                                                    
+       93 +                                                              
+       94 +```bash                                                       
+       95 +ls /dev/tty.*                                                 
+       96 +```                                                           
+       97 +                                                              
+       98 +The Pico shows up as something like `/dev/tty.usbmodem14101`. 
+       99 +                                                              
+      100 +**Linux (including Raspberry Pi):**                           
+      101 +                                                              
+      102 +```bash                                                       
+      103 +ls /dev/ttyACM*                                               
+      104 +```                                                           
+      105 +                                                              
+      106 +The Pico is usually `/dev/ttyACM0` (or the next free number if
+          + other USB-serial devices are already connected).             
+      107 +                                                              
+      108 +If several devices are listed and you're not sure which one is
+          + the Pico, unplug it, re-run the `ls` command, plug it back in
+          +, and re-run again — the device that appears is the Pico. On L
+          +inux you can also confirm with:                               
+      109 +                                                              
+      110 +```bash                                                       
+      111 +ls -la /dev/serial/by-id/                                     
+      112 +```                                                           
+      113 +                                                              
+      114 +which prints a descriptive name (e.g. containing `Raspberry_Pi
+          +_Pico` or `CircuitPython`) instead of a generic device number.
+      115 +                                                              
+      116 +## 2. Open the serial console with `screen`                   
+      117 +                                                              
+      118 +```bash                                                       
+      119 +screen /dev/tty.usbmodem14101 115200                          
+      120 +```                                                           
+      121 +                                                              
+      122 +(substitute the actual device path from step 1; the baud rate 
+          +`115200` is conventional and CircuitPython ignores it over USB
+          +, but you still need to supply a value).                      
+      123 +                                                              
+      124 +You should land on a blank terminal connected to the board. If
+          + `code.py` is running, any `print()` output or KMK debug lines
+          + will stream in as they happen. Press Enter if you see nothing
+          + — sometimes the first line is swallowed by `screen` attaching
+          + mid-output.                                                  
+      125 +                                                              
+      126 +## 3. Useful keys once connected                              
+      127 +                                                              
+      128 +- **Ctrl+D** — soft-reboot: reloads and re-runs `code.py`.    
+      129 +- **Ctrl+C** — interrupt the running program and drop into the
+          + REPL.                                                        
+      130 +- **Ctrl+A** then **K**, then **y** — kill the `screen` sessio
+          +n (disconnects so another program, like Mu, can open the port)
+          +.                                                             
+      131 +- **Ctrl+A** then **D** — detach without killing the session (
+          +reattach later with `screen -r`).                             
+      132 +                                                              
+      133 +Only one program can hold the serial port open at a time — if 
+          +`screen` won't connect, make sure Mu, `tio`, Arduino IDE's ser
+          +ial monitor, etc. aren't already attached to the same device. 
+      134 +                                                              
+      135 +---                                                           
+      136 +                                                              
+      137  # Verify CircuitPython
+      138  
+      139  Create `code.py`
+
+⏺ Added a "Connecting to the Serial Console" section covering listing tty
+  devices on macOS/Linux, identifying the Pico, opening it with screen, and the
+  key commands (Ctrl+D reload, Ctrl+C for REPL, Ctrl+A K to quit screen).
+
+✻ Cogitated for 25s
+
+※ recap: You're debugging keyboard ghosting and a dead PrtSc key on the Toshiba T1200XE Pico firmware, and just documented how to connect via screen. Next: reconnect over serial with debug logging enabled and press F3/PrtSc to check which key_numbers actually fire. (disable recaps in /config)
+
+❯ OK, just pressing F3 yields this                                              
+                                                                                
+  395179 kmk.keyboard: <Event: key_number 22 pressed>: KeyboardKey(code=60)     
+  395182 kmk.keyboard: coordkeys_pressed={22: KeyboardKey(code=60)}             
+  395185 kmk.keyboard: keys_pressed={KeyboardKey(code=60)}                      
+  395221 kmk.keyboard: <Event: key_number 33 pressed>: KeyboardKey(code=78)     
+  395224 kmk.keyboard: coordkeys_pressed={22: KeyboardKey(code=60), 33:         
+  KeyboardKey(code=78)}                                                         
+  395228 kmk.keyboard: keys_pressed={KeyboardKey(code=60),                      
+  KeyboardKey(code=78)}                                                         
+  395297 kmk.keyboard: <Event: key_number 22 released>: KeyboardKey(code=60)    
+  395300 kmk.keyboard: coordkeys_pressed={33: KeyboardKey(code=78)}             
+  395303 kmk.keyboard: keys_pressed={KeyboardKey(code=78)}                      
+  395308 kmk.keyboard: <Event: key_number 33 released>: KeyboardKey(code=78)    
+  395311 kmk.keyboard: coordkeys_pressed={}                                     
+  397613 kmk.keyboard: <Event: key_number 22 pressed>: KeyboardKey(code=60)     
+  397616 kmk.keyboard: coordkeys_pressed={22: KeyboardKey(code=60)}             
+  397619 kmk.keyboard: keys_pressed={KeyboardKey(code=60)}                      
+  397685 kmk.keyboard: <Event: key_number 33 pressed>: KeyboardKey(code=78)     
+  397689 kmk.keyboard: coordkeys_pressed={22: KeyboardKey(code=60), 33:         
+  KeyboardKey(code=78)}                                                         
+  397692 kmk.keyboard: keys_pressed={KeyboardKey(code=60),                      
+  KeyboardKey(code=78)}                                                         
+  397720 kmk.keyboard: <Event: key_number 33 released>: KeyboardKey(code=78)    
+  397723 kmk.keyboard: coordkeys_pressed={22: KeyboardKey(code=60)}             
+  397726 kmk.keyboard: keys_pressed={KeyboardKey(code=60)}                      
+  397731 kmk.keyboard: <Event: key_number 22 released>: KeyboardKey(code=60)    
+  397734 kmk.keyboard: coordkeys_pressed={}                                     
+  398920 kmk.keyboard: <Event: key_number 22 pressed>: KeyboardKey(code=60)     
+  398922 kmk.keyboard: coordkeys_pressed={22: KeyboardKey(code=60)}             
+  398925 kmk.keyboard: keys_pressed={KeyboardKey(code=60)}                      
+  398946 kmk.keyboard: <Event: key_number 33 pressed>: KeyboardKey(code=78)     
+  398949 kmk.keyboard: coordkeys_pressed={22: KeyboardKey(code=60), 33:         
+  KeyboardKey(code=78)}                                                         
+  398953 kmk.keyboard: keys_pressed={KeyboardKey(code=60),                      
+  KeyboardKey(code=78)}                                                         
+  399022 kmk.keyboard: <Event: key_number 33 released>: KeyboardKey(code=78)    
+  399025 kmk.keyboard: coordkeys_pressed={22: KeyboardKey(code=60)}             
+  399028 kmk.keyboard: keys_pressed={KeyboardKey(code=60)}                      
+  399033 kmk.keyboard: <Event: key_number 22 released>: KeyboardKey(code=60)    
+  399036 kmk.keyboard: coordkeys_pressed={}                                     
+
+⏺ That log confirms the ghost is happening at the raw matrix-scan level, not in
+  firmware — two genuinely separate key_number events (22 and 33) fire from one
+  press of F3. So it's hardware. But the timing rules out a simple wire-to-wire
+  short, and points somewhere more specific:
+
+  - key_number 33 (Next) fires 42–72ms after key_number 22 (F3), not in the same
+  scan cycle. A hard short between the row lines would assert both almost
+  instantly (within one ~2ms scan). This lag looks like something taking time to
+  make contact.
+  - The release order flips between attempts — 22-then-33 released in trial 1,
+  but 33-then-22 in trials 2 and 3. A fixed electrical short would behave
+  consistently; this doesn't.
+
+  That pattern — delayed, inconsistent, tied to a specific pair of keys that are
+  physically adjacent on the keyboard (F3 sits right above Next/PgDn in that
+  vertical F-key column) — is much more characteristic of a worn or cracked 
+  membrane/flex-circuit trace than a wiring short. On old membrane keyboards
+  like this one, pressing a key can slightly deform the membrane; if there's a
+  crack or worn conductive trace near the boundary between two adjacent key
+  pads, that flex can momentarily bridge into the neighbor's contact — with
+  exactly this kind of soft, variable-delay, order-inconsistent behavior. It
+  would also explain why your multimeter check (at rest, unpressed) found
+  nothing: the bridging only happens under the mechanical pressure of an actual
+  keypress, not when the keyboard is idle.
+
+  Since the whole chain (F3→Next→F5→F7→F9→End) runs down that same physical
+  column, this suggests wear or damage along that entire strip of the membrane,
+  not just one spot.
+
+  Two follow-ups worth doing:
+  1. Continuity test while pressed: hold F3 down and check for continuity
+  between the row2/row3 conductors (or right at the keyboard's ribbon connector
+  pins) while pressed — a short that only appears under pressure would confirm
+  the membrane-crack theory directly.
+  2. Visual inspection: if the keyboard can be opened, look at the membrane/flex
+  circuit in the F3–End column for visible cracks, worn silver-ink traces, or
+  debris between adjacent pads.
+
+  Separately — can you press PrtSc and paste the log? I want to see whether
+  key_number 75 appears at all.
+
+✻ Baked for 45s
+
+❯ 721131 kmk.keyboard: <Event: key_number 75 pressed>: KeyboardKey(code=70)     
+  721134 kmk.keyboard: coordkeys_pressed={75: KeyboardKey(code=70)}             
+  721137 kmk.keyboard: keys_pressed={KeyboardKey(code=70)}                      
+  721209 kmk.keyboard: <Event: key_number 75 released>: KeyboardKey(code=70)    
+  721212 kmk.keyboard: coordkeys_pressed={}                                     
+
+⏺ Good news for hardware/firmware: key_number 75 fires correctly and resolves to
+  KeyboardKey(code=70) — code 70 (0x46) is exactly the standard HID usage for
+  Print Screen. So the matrix, the switch, and KMK are all doing their job
+  correctly and sending the right HID report. This is not a hardware fault.
+
+  That pushes the problem downstream, to the Linux input layer or X11/desktop
+  environment. Next step: bypass xev entirely and watch the raw kernel input
+  event.
+
+  1. Find the Pico's input device:
+
+  cat /proc/bus/input/devices | grep -A5 -i "adafruit\|pico\|kmk"
+
+  Look for a line like Handlers=... eventX — note that eventX number. (If
+  nothing matches, run ls /dev/input/by-id/ instead and look for a *-event-kbd
+  entry mentioning the Pico.)
+
+  2. Watch raw kernel events:
+
+  sudo evtest /dev/input/eventX
+
+  Press PrtSc and see what happens:
+
+  - If you see a line like EV_KEY / KEY_SYSRQ or EV_KEY / KEY_PRINT reported
+  there — the key is reaching the kernel input layer just fine, and the problem
+  is X11/your desktop environment eating it before xev's window ever sees it.
+  This is extremely common: screenshot utilities (GNOME Screenshot, Flameshot,
+  scrot bound via a WM shortcut, etc.) register PrintScreen as a global grab,
+  which means X delivers the event only to the grabbing client, never to other
+  windows including xev. Worth checking xfce4-keyboard-settings / GNOME Settings
+  → Keyboard Shortcuts / your WM config for anything bound to Print Screen, and
+  temporarily disabling it to retest in xev.
+  - If evtest shows nothing when you press PrtSc, then the HID report genuinely
+  isn't reaching the kernel despite KMK sending it — that would be a real
+  USB/HID-layer bug worth digging into further (unlikely given the log you
+  showed, but let's confirm).
+
+  Can you run that and paste what evtest shows for PrtSc?
+✻ Baked for 18s
+
+❯ Let's not solve PrtScr, I am OK for now.                                      
+                                                                                
+  I pressed F3 5 times, can you reconfirm your theory?                          
+                                                                                
+  758319 kmk.keyboard: <Event: key_number 22 pressed>: KeyboardKey(code=60)     
+  758322 kmk.keyboard: coordkeys_pressed={22: KeyboardKey(code=60)}             
+  758324 kmk.keyboard: keys_pressed={KeyboardKey(code=60)}                      
+  758380 kmk.keyboard: <Event: key_number 33 pressed>: KeyboardKey(code=78)     
+  758383 kmk.keyboard: coordkeys_pressed={22: KeyboardKey(code=60), 33:         
+  KeyboardKey(code=78)}                                                         
+  758387 kmk.keyboard: keys_pressed={KeyboardKey(code=60),                      
+  KeyboardKey(code=78)}                                                         
+  758412 kmk.keyboard: <Event: key_number 33 released>: KeyboardKey(code=78)    
+  758416 kmk.keyboard: coordkeys_pressed={22: KeyboardKey(code=60)}             
+  758418 kmk.keyboard: keys_pressed={KeyboardKey(code=60)}                      
+  758422 kmk.keyboard: <Event: key_number 22 released>: KeyboardKey(code=60)    
+  758425 kmk.keyboard: coordkeys_pressed={}                                     
+  759727 kmk.keyboard: <Event: key_number 22 pressed>: KeyboardKey(code=60)     
+  759730 kmk.keyboard: coordkeys_pressed={22: KeyboardKey(code=60)}             
+  759733 kmk.keyboard: keys_pressed={KeyboardKey(code=60)}                      
+  759739 kmk.keyboard: <Event: key_number 33 pressed>: KeyboardKey(code=78)     
+  759742 kmk.keyboard: coordkeys_pressed={22: KeyboardKey(code=60), 33:         
+  KeyboardKey(code=78)}                                                         
+  759746 kmk.keyboard: keys_pressed={KeyboardKey(code=60),                      
+  KeyboardKey(code=78)}                                                         
+  759825 kmk.keyboard: <Event: key_number 22 released>: KeyboardKey(code=60)    
+  759828 kmk.keyboard: coordkeys_pressed={33: KeyboardKey(code=78)}             
+  759831 kmk.keyboard: keys_pressed={KeyboardKey(code=78)}                      
+  759836 kmk.keyboard: <Event: key_number 33 released>: KeyboardKey(code=78)    
+  759839 kmk.keyboard: coordkeys_pressed={}                                     
+  760891 kmk.keyboard: <Event: key_number 22 pressed>: KeyboardKey(code=60)     
+  760894 kmk.keyboard: coordkeys_pressed={22: KeyboardKey(code=60)}             
+  760897 kmk.keyboard: keys_pressed={KeyboardKey(code=60)}                      
+  760919 kmk.keyboard: <Event: key_number 33 pressed>: KeyboardKey(code=78)     
+  760922 kmk.keyboard: coordkeys_pressed={22: KeyboardKey(code=60), 33:         
+  KeyboardKey(code=78)}                                                         
+  760925 kmk.keyboard: keys_pressed={KeyboardKey(code=60),                      
+  KeyboardKey(code=78)}                                                         
+  760979 kmk.keyboard: <Event: key_number 33 released>: KeyboardKey(code=78)    
+  760982 kmk.keyboard: coordkeys_pressed={22: KeyboardKey(code=60)}             
+  760985 kmk.keyboard: keys_pressed={KeyboardKey(code=60)}                      
+  760990 kmk.keyboard: <Event: key_number 22 released>: KeyboardKey(code=60)    
+  760993 kmk.keyboard: coordkeys_pressed={}                                     
+  764312 kmk.keyboard: <Event: key_number 22 pressed>: KeyboardKey(code=60)     
+  764315 kmk.keyboard: coordkeys_pressed={22: KeyboardKey(code=60)}             
+  764318 kmk.keyboard: keys_pressed={KeyboardKey(code=60)}                      
+  764415 kmk.keyboard: <Event: key_number 22 released>: KeyboardKey(code=60)    
+  764418 kmk.keyboard: coordkeys_pressed={}                                     
+  765712 kmk.keyboard: <Event: key_number 22 pressed>: KeyboardKey(code=60)     
+  765714 kmk.keyboard: coordkeys_pressed={22: KeyboardKey(code=60)}             
+  765717 kmk.keyboard: keys_pressed={KeyboardKey(code=60)}                      
+  765761 kmk.keyboard: <Event: key_number 33 pressed>: KeyboardKey(code=78)     
+  765764 kmk.keyboard: coordkeys_pressed={22: KeyboardKey(code=60), 33:         
+  KeyboardKey(code=78)}                                                         
+  765768 kmk.keyboard: keys_pressed={KeyboardKey(code=60),                      
+  KeyboardKey(code=78)}                                                         
+  765804 kmk.keyboard: <Event: key_number 33 released>: KeyboardKey(code=78)    
+  765807 kmk.keyboard: coordkeys_pressed={22: KeyboardKey(code=60)}             
+  765810 kmk.keyboard: keys_pressed={KeyboardKey(code=60)}                      
+  765814 kmk.keyboard: <Event: key_number 22 released>: KeyboardKey(code=60)    
+  765818 kmk.keyboard: coordkeys_pressed={}                                     
+
+⏺ This data is even more conclusive — and refines the theory further.
+
+  ┌───────┬───────────────────┬───────────────┬───────────────┐
+  │ Press │ Ghost (33) fired? │ Lag before 33 │ Release order │
+  ├───────┼───────────────────┼───────────────┼───────────────┤
+  │ 1     │ Yes               │ 61ms          │ 33 then 22    │
+  ├───────┼───────────────────┼───────────────┼───────────────┤
+  │ 2     │ Yes               │ 12ms          │ 22 then 33    │
+  ├───────┼───────────────────┼───────────────┼───────────────┤
+  │ 3     │ Yes               │ 28ms          │ 33 then 22    │
+  ├───────┼───────────────────┼───────────────┼───────────────┤
+  │ 4     │ No                │ —             │ —             │
+  ├───────┼───────────────────┼───────────────┼───────────────┤
+  │ 5     │ Yes               │ 49ms          │ 33 then 22    │
+  └───────┴───────────────────┴───────────────┴───────────────┘
+
+  Press 4 produced zero ghosting — a clean, single key_number 22 event with no
+  33 at all. That's the key new fact: it rules out a fixed short (a solder
+  bridge or permanent wire-to-wire short would fire every single time, with
+  roughly consistent timing). Instead you're getting the ghost ~80% of the time,
+  with lag ranging from 12ms to 61ms and no consistent release order.
+
+  This is exactly what you'd expect from a marginal, pressure-dependent 
+  mechanical contact rather than an electrical fault: something in the
+  keyboard's physical construction (most likely a worn/cracked conductive trace
+  on the membrane, or debris/contamination between the F3 and Next pads) that
+  only bridges the two contacts when the key is pressed hard enough, fast
+  enough, or at the right angle — and sometimes doesn't bridge at all. That
+  fully explains the variable lag and the one clean press.
+
+  So: confirmed hardware, and now narrowed from "short somewhere in the row
+  wiring" to "intermittent, force/angle-sensitive contact fault localized to the
+  physical keys in that F-key column, most likely on the membrane itself" —
+  worth opening the keyboard and inspecting/cleaning that column's membrane
+  contacts if you want to pursue a repair.
+
+✻ Worked for 17s

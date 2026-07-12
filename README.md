@@ -363,12 +363,12 @@ This scanner was used to build the entire keyboard matrix.
 
 Example:
 
-| Row | Col | Key |
-|------|------|-----|
-|0|0|F1|
-|0|1|F2|
-|0|2|Esc|
-|...|...|...|
+| Row  | Col  | Key  |
+|------|------|------|
+| 0    | 0    | F1   |
+| 0    | 1    | F2   |
+| 0    | 2    | Esc  |
+| ...  | ...  | ...  |
 
 ---
 
@@ -465,6 +465,28 @@ usb_cdc.enable(console=False, data=True)
 ```
 
 This removes the REPL console while keeping a serial data port.
+
+---
+
+# Disable USB MIDI (Pico Shows Up as a Sound Card)
+
+CircuitPython enables a USB MIDI interface by default. USB MIDI streaming
+is technically a subclass of the USB *Audio* class, so on Linux hosts it
+shows up as an extra ALSA sound card (`cat /proc/asound/cards` lists it as
+`Pico [USB-Audio]`) even though KMK never uses it and no real audio is
+involved. Harmless, but confusing when diagnosing audio setups.
+
+Create `boot.py`
+
+```python
+import usb_midi
+
+usb_midi.disable()
+```
+
+`boot.py` only runs on a full boot, not on the auto-reload triggered by
+saving `code.py` — unplug and replug the Pico (or press its reset button)
+for this to take effect.
 
 ---
 
