@@ -7,7 +7,9 @@ from kmk.scanners import DiodeOrientation
 from kmk.scanners.keypad import MatrixScanner
 from kmk.utils import Debug
 
-Debug(__name__).enabled = False
+#from ghost_filter import GhostFilterMatrixScanner
+
+Debug(__name__).enabled = True
 
 # Copy this code to CIRCUITPY\code.py
 
@@ -31,6 +33,7 @@ keyboard.diode_orientation = DiodeOrientation.ROW2COL
 # keypad.KeyMatrix default interval=0.02s (20ms/scan), threshold=1 = no debounce.
 # debounce time = interval * threshold, so keep interval short and threshold moderate.
 # interval=0.002 + threshold=15 → ~30ms debounce. Raise threshold if Enter still bounces.
+# keyboard.matrix = GhostFilterMatrixScanner(
 keyboard.matrix = MatrixScanner(
     column_pins=keyboard.col_pins,
     row_pins=keyboard.row_pins,

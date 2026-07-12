@@ -83,6 +83,57 @@ CIRCUITPY
 
 ---
 
+# Connecting to the Serial Console
+
+The Pico exposes a USB serial (CDC) device once CircuitPython is installed. This is how you see `print()` output, KMK debug logs, and the REPL.
+
+## 1. List available tty devices
+
+**macOS:**
+
+```bash
+ls /dev/tty.*
+```
+
+The Pico shows up as something like `/dev/tty.usbmodem14101`.
+
+**Linux (including Raspberry Pi):**
+
+```bash
+ls /dev/ttyACM*
+```
+
+The Pico is usually `/dev/ttyACM0` (or the next free number if other USB-serial devices are already connected).
+
+If several devices are listed and you're not sure which one is the Pico, unplug it, re-run the `ls` command, plug it back in, and re-run again — the device that appears is the Pico. On Linux you can also confirm with:
+
+```bash
+ls -la /dev/serial/by-id/
+```
+
+which prints a descriptive name (e.g. containing `Raspberry_Pi_Pico` or `CircuitPython`) instead of a generic device number.
+
+## 2. Open the serial console with `screen`
+
+```bash
+screen /dev/tty.usbmodem14101 115200
+```
+
+(substitute the actual device path from step 1; the baud rate `115200` is conventional and CircuitPython ignores it over USB, but you still need to supply a value).
+
+You should land on a blank terminal connected to the board. If `code.py` is running, any `print()` output or KMK debug lines will stream in as they happen. Press Enter if you see nothing — sometimes the first line is swallowed by `screen` attaching mid-output.
+
+## 3. Useful keys once connected
+
+- **Ctrl+D** — soft-reboot: reloads and re-runs `code.py`.
+- **Ctrl+C** — interrupt the running program and drop into the REPL.
+- **Ctrl+A** then **K**, then **y** — kill the `screen` session (disconnects so another program, like Mu, can open the port).
+- **Ctrl+A** then **D** — detach without killing the session (reattach later with `screen -r`).
+
+Only one program can hold the serial port open at a time — if `screen` won't connect, make sure Mu, `tio`, Arduino IDE's serial monitor, etc. aren't already attached to the same device.
+
+---
+
 # Verify CircuitPython
 
 Create `code.py`
