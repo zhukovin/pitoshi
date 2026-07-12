@@ -67,17 +67,23 @@ keyboard.keymap = [
     #   Keys marked NO have Toshiba-specific functions (Slow/Fast CPU speed,
     #   IntDisp/ExtDisp display routing, Font size, Overlay mode) with no
     #   standard HID equivalent.
+    #   Digits/operators use plain HID keyboard-page keys (KC.N4, KC.MINS, ...)
+    #   rather than KC.KP_* (HID keypad-page). Keypad-page codes only resolve
+    #   to digits when the host's own Num Lock is on, and this firmware can't
+    #   read or drive that LED state — on Linux/RPi they were resolving as
+    #   navigation keys (arrows/Home/etc.) instead of digits. Plain keys always
+    #   type the digit/symbol regardless of host Num Lock state.
     # -----------------------------------------------------------------------
     [
         # Col:  0           1                2   3    4    5          6          7                 8    9    10
-        ___,    ___,         NO,             ___, ___, ___, KC.KP_8,  KC.KP_ASTERISK, ___,         ___, ___, # row 0: 8→KP8, 0→KP*; Esc→PopUp (no HID)
-        KC.TG(2),KC.SCROLL_LOCK,___,        ___, ___, KC.KP_7, KC.KP_9, ___,         ___,         ___, ___, # row 1: F11→TG(2) NumLock, F12→ScrLk, 7→KP7, 9→KP9
-        ___,    ___,         ___,            ___, ___, ___, KC.KP_5,  KC.KP_MINUS,    ___,         NO,  NO,  # row 2: i→KP5, p→KP-; Home→IntDisp (no HID)
-        NO,     NO,          ___,            ___, ___, KC.KP_4, KC.KP_6, ___,         ___,         ___, NO,  # row 3: PgDn→Slow, PgUp→Fast (no HID); u→KP4, o→KP6
-        ___,    ___,         ___,            ___, ___, ___, KC.KP_1,  KC.KP_3,        NO,          ___, NO,  # row 4: j→KP1, l→KP3; Right→Font (no HID)
-        ___,    ___,         KC.LGUI,        ___, ___, ___, KC.KP_2,  KC.KP_PLUS,     ___,         ___, NO,  # row 5: Ctrl→Cmd; k→KP2, ;→KP+
-        ___,    NO,          ___,            ___, ___, ___, ___,      KC.KP_DOT,      KC.KP_SLASH, ___, NO,  # row 6: F10→Overlay (no HID); .→KP., /→KP/
-        NO,     ___,         ___,            ___, ___, ___, KC.KP_0,  ___,            ___,         ___, NO,  # row 7: End→ExtDisp (no HID); m→KP0
+        ___,    ___,         NO,             ___, ___, ___, KC.N8,    KC.ASTR,    ___,             ___, ___, # row 0: 8→8, 0→*; Esc→PopUp (no HID)
+        KC.TG(2),KC.SCROLL_LOCK,___,        ___, ___, KC.N7,   KC.N9,   ___,         ___,         ___, ___, # row 1: F11→TG(2) NumLock, F12→ScrLk, 7→7, 9→9
+        ___,    ___,         ___,            ___, ___, ___, KC.N5,    KC.MINS,    ___,             NO,  NO,  # row 2: i→5, p→-; Home→IntDisp (no HID)
+        NO,     NO,          ___,            ___, ___, KC.N4,   KC.N6,   ___,         ___,         ___, NO,  # row 3: PgDn→Slow, PgUp→Fast (no HID); u→4, o→6
+        ___,    ___,         ___,            ___, ___, ___, KC.N1,    KC.N3,      NO,              ___, NO,  # row 4: j→1, l→3; Right→Font (no HID)
+        ___,    ___,         KC.LGUI,        ___, ___, ___, KC.N2,    KC.PLUS,    ___,             ___, NO,  # row 5: Ctrl→Cmd; k→2, ;→+
+        ___,    NO,          ___,            ___, ___, ___, ___,      KC.DOT,     KC.SLSH,         ___, NO,  # row 6: F10→Overlay (no HID); .→., /→/
+        NO,     ___,         ___,            ___, ___, ___, KC.N0,    ___,        ___,             ___, NO,  # row 7: End→ExtDisp (no HID); m→0
     ],
     # -----------------------------------------------------------------------
     # Layer 2 — NumLock (permanent numpad)
@@ -85,17 +91,18 @@ keyboard.keymap = [
     #   F11 alone also toggles it off (TG(2) here).
     #   Only numpad keys — no other Fn shortcuts — so normal keys like
     #   PgDn/PgUp/Home remain reachable when NumLock is on.
+    #   Same plain-key rationale as layer 1 above.
     # -----------------------------------------------------------------------
     [
         # Col:  0           1    2    3    4    5          6          7                 8              9    10
-        ___,    ___,         ___, ___, ___, ___, KC.KP_8,  KC.KP_ASTERISK, ___,         ___,           ___, # row 0: 8→KP8, 0→KP*
-        KC.TG(2), ___,       ___, ___, ___, KC.KP_7, KC.KP_9, ___,         ___,         ___,           ___, # row 1: F11→unlock NumLock, 7→KP7, 9→KP9
-        ___,    ___,         ___, ___, ___, ___, KC.KP_5,  KC.KP_MINUS,    ___,         ___,           NO,  # row 2: i→KP5, p→KP-
-        ___,    ___,         ___, ___, ___, KC.KP_4, KC.KP_6, ___,         ___,         ___,           NO,  # row 3: u→KP4, o→KP6
-        ___,    ___,         ___, ___, ___, ___, KC.KP_1,  KC.KP_3,        ___,         ___,           NO,  # row 4: j→KP1, l→KP3
-        ___,    ___,         ___, ___, ___, ___, KC.KP_2,  KC.KP_PLUS,     ___,         ___,           NO,  # row 5: k→KP2, ;→KP+
-        ___,    ___,         ___, ___, ___, ___, ___,      KC.KP_DOT,      KC.KP_SLASH, ___,           NO,  # row 6: .→KP., /→KP/
-        ___,    ___,         ___, ___, ___, ___, KC.KP_0,  ___,            ___,         ___,           NO,  # row 7: m→KP0
+        ___,    ___,         ___, ___, ___, ___, KC.N8,    KC.ASTR,    ___,             ___,           ___, # row 0: 8→8, 0→*
+        KC.TG(2), ___,       ___, ___, ___, KC.N7,   KC.N9,   ___,         ___,         ___,           ___, # row 1: F11→unlock NumLock, 7→7, 9→9
+        ___,    ___,         ___, ___, ___, ___, KC.N5,    KC.MINS,    ___,             ___,           NO,  # row 2: i→5, p→-
+        ___,    ___,         ___, ___, ___, KC.N4,   KC.N6,   ___,         ___,         ___,           NO,  # row 3: u→4, o→6
+        ___,    ___,         ___, ___, ___, ___, KC.N1,    KC.N3,      ___,             ___,           NO,  # row 4: j→1, l→3
+        ___,    ___,         ___, ___, ___, ___, KC.N2,    KC.PLUS,    ___,             ___,           NO,  # row 5: k→2, ;→+
+        ___,    ___,         ___, ___, ___, ___, ___,      KC.DOT,     KC.SLSH,         ___,           NO,  # row 6: .→., /→/
+        ___,    ___,         ___, ___, ___, ___, KC.N0,    ___,        ___,             ___,           NO,  # row 7: m→0
     ],
 ]
 
