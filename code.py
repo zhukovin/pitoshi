@@ -75,15 +75,16 @@ keyboard.keymap = [
     #   type the digit/symbol regardless of host Num Lock state.
     # -----------------------------------------------------------------------
     [
-        # Col:  0           1                2   3    4    5          6          7                 8    9    10
-        ___,    ___,         NO,             ___, ___, ___, KC.N8,    KC.ASTR,    ___,             ___, ___, # row 0: 8→8, 0→*; Esc→PopUp (no HID)
-        KC.TG(2),KC.SCROLL_LOCK,___,        ___, ___, KC.N7,   KC.N9,   ___,         ___,         ___, ___, # row 1: F11→TG(2) NumLock, F12→ScrLk, 7→7, 9→9
-        ___,    ___,         ___,            ___, ___, ___, KC.N5,    KC.MINS,    ___,             NO,  NO,  # row 2: i→5, p→-; Home→IntDisp (no HID)
-        NO,     NO,          ___,            ___, ___, KC.N4,   KC.N6,   ___,         ___,         ___, NO,  # row 3: PgDn→Slow, PgUp→Fast (no HID); u→4, o→6
-        ___,    ___,         ___,            ___, ___, ___, KC.N1,    KC.N3,      NO,              ___, NO,  # row 4: j→1, l→3; Right→Font (no HID)
-        ___,    ___,         KC.LGUI,        ___, ___, ___, KC.N2,    KC.PLUS,    ___,             ___, NO,  # row 5: Ctrl→Cmd; k→2, ;→+
-        ___,    NO,          ___,            ___, ___, ___, ___,      KC.DOT,     KC.SLSH,         ___, NO,  # row 6: F10→Overlay (no HID); .→., /→/
-        NO,     ___,         ___,            ___, ___, ___, KC.N0,    ___,        ___,             ___, NO,  # row 7: End→ExtDisp (no HID); m→0
+    # Col:
+    #   0         1               2        3    4    5      6      7        8        9    10
+        ___,      ___,            NO,      ___, ___, ___,   KC.N8, KC.ASTR, ___,     ___, ___, # row 0: 8→8, 0→*; Esc→PopUp (no HID)
+        KC.TG(2), KC.SCROLL_LOCK, ___,     ___, ___, KC.N7, KC.N9, ___,     ___,     ___, ___, # row 1: F11→TG(2) NumLock, F12→ScrLk, 7→7, 9→9
+        ___,      ___,            ___,     ___, ___, ___,   KC.N5, KC.MINS, ___,     NO,  NO,  # row 2: i→5, p→-; Home→IntDisp (no HID)
+        NO,       NO,             ___,     ___, ___, KC.N4, KC.N6, ___,     ___,     ___, NO,  # row 3: PgDn→Slow, PgUp→Fast (no HID); u→4, o→6
+        ___,      ___,            ___,     ___, ___, ___,   KC.N1, KC.N3,   NO,      ___, NO,  # row 4: j→1, l→3; Right→Font (no HID)
+        ___,      ___,            KC.LGUI, ___, ___, ___,   KC.N2, KC.PLUS, ___,     ___, NO,  # row 5: Ctrl→Cmd; k→2, ;→+
+        ___,      NO,             ___,     ___, ___, ___,   ___,   KC.DOT,  KC.SLSH, ___, NO,  # row 6: F10→Overlay (no HID); .→., /→/
+        NO,       ___,            ___,     ___, ___, ___,   KC.N0, ___,     ___,     ___, NO,  # row 7: End→ExtDisp (no HID); m→0
     ],
     # -----------------------------------------------------------------------
     # Layer 2 — NumLock (permanent numpad)
@@ -94,15 +95,16 @@ keyboard.keymap = [
     #   Same plain-key rationale as layer 1 above.
     # -----------------------------------------------------------------------
     [
-        # Col:  0           1    2    3    4    5          6          7                 8              9    10
-        ___,    ___,         ___, ___, ___, ___, KC.N8,    KC.ASTR,    ___,             ___,           ___, # row 0: 8→8, 0→*
-        KC.TG(2), ___,       ___, ___, ___, KC.N7,   KC.N9,   ___,         ___,         ___,           ___, # row 1: F11→unlock NumLock, 7→7, 9→9
-        ___,    ___,         ___, ___, ___, ___, KC.N5,    KC.MINS,    ___,             ___,           NO,  # row 2: i→5, p→-
-        ___,    ___,         ___, ___, ___, KC.N4,   KC.N6,   ___,         ___,         ___,           NO,  # row 3: u→4, o→6
-        ___,    ___,         ___, ___, ___, ___, KC.N1,    KC.N3,      ___,             ___,           NO,  # row 4: j→1, l→3
-        ___,    ___,         ___, ___, ___, ___, KC.N2,    KC.PLUS,    ___,             ___,           NO,  # row 5: k→2, ;→+
-        ___,    ___,         ___, ___, ___, ___, ___,      KC.DOT,     KC.SLSH,         ___,           NO,  # row 6: .→., /→/
-        ___,    ___,         ___, ___, ___, ___, KC.N0,    ___,        ___,             ___,           NO,  # row 7: m→0
+    # Col:
+    #   0         1    2    3    4    5      6      7        8        9    10
+        ___,      ___, ___, ___, ___, ___,   KC.N8, KC.ASTR, ___,     ___, ___, # row 0: 8→8, 0→*
+        KC.TG(2), ___, ___, ___, ___, KC.N7, KC.N9, ___,     ___,     ___, ___, # row 1: F11→unlock NumLock, 7→7, 9→9
+        ___,      ___, ___, ___, ___, ___,   KC.N5, KC.MINS, ___,     ___, NO,  # row 2: i→5, p→-
+        ___,      ___, ___, ___, ___, KC.N4, KC.N6, ___,     ___,     ___, NO,  # row 3: u→4, o→6
+        ___,      ___, ___, ___, ___, ___,   KC.N1, KC.N3,   ___,     ___, NO,  # row 4: j→1, l→3
+        ___,      ___, ___, ___, ___, ___,   KC.N2, KC.PLUS, ___,     ___, NO,  # row 5: k→2, ;→+
+        ___,      ___, ___, ___, ___, ___,   ___,   KC.DOT,  KC.SLSH, ___, NO,  # row 6: .→., /→/
+        ___,      ___, ___, ___, ___, ___,   KC.N0, ___,     ___,     ___, NO,  # row 7: m→0
     ],
 ]
 
